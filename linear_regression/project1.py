@@ -2,6 +2,13 @@
 ECE475 Frequentist ML Project 1 - Linear Regression
 Husam Almanakly & Michael Bentivegna
 
+    This project uses three linear regression techniques (regular, ridge, and lasso) to estimate the weights of each feature in 
+two unique datasets.  For regular linear regression, the covariance of the predictors is displayed as well as each features' zscore.
+The ridge regression model showcases how each weight is affected by the changing lambda value which, when large, pushes all weights 
+to 0.  The optimal lambda value was chosen using the validation set and is displayed on the graph with a vertical line.  The lasso model
+similarly sweeps over the hyperparameter alpha to minimize MSE on the validation set.  Using lasso, the parameters lcavol, lweight, svi, 
+lbph, pgg45 were all non-zero.  Although it is difficult to know if this should be the case, the lasso plot matches the results in the "The Elements 
+of Statistical Learning" textbook.  For each method, the training MSE and test MSE are displayed for comparison.
 
 """
 
@@ -42,6 +49,16 @@ def mean_squared_error(y, y_hat):
     
     return mse
 
+def standard_error(X, y, y_hat):
+    """
+    Get standard error for regular linear regression (used for z-score and table)
+    """
+
+    stde = 1/2 * np.sqrt((1 / (X.shape[0] - X.shape[1] - 1 ) * np.sum(np.square(y-y_hat))) * np.diagonal(np.linalg.inv(X.T @ X)))
+    col_stde = np.array([stde]).T
+
+    return col_stde
+
 
 def test_lin_reg_ridge(X, y, b_hat, b_o):
     """
@@ -58,10 +75,10 @@ def test_lin_reg(X, y, b_hat):
     """
     y_hat = X @ b_hat
     
-    return mean_squared_error(y, y_hat)
+    return mean_squared_error(y, y_hat), standard_error(X, y, y_hat)
 
 
-def create_table(b_hat, tab, cols, skip=0):
+def table_ridge_lasso(b_hat, tab, cols, skip=0):
     """
     Function to showcase data in tabular form
     """
@@ -69,6 +86,21 @@ def create_table(b_hat, tab, cols, skip=0):
         tab.append((item, b_hat[i+skip]))
     
     return tab
+
+
+def table_lin_reg(b_hat, standard_error, z_score, cols):
+    """
+    Function to showcase data in tabular form
+    """
+    tab = [("Term", "Coefficient", "Std. Error", "Z Score")]
+    for i, item in enumerate(cols):
+        B = np.round(b_hat[i], 3).squeeze()
+        stde = np.round(standard_error[i], 3).squeeze()
+        zscore = np.round(z_score[i], 3).squeeze()
+        tab.append((item, B, stde, zscore))
+    
+    return tab
+
 
 
 # %% Apply Regression Models
@@ -115,12 +147,21 @@ def apply_models(df, output):
 
     # ---------Linear Regression---------
     b_hat = lin_reg(training_matrix, output_training)
-    tab = [("Intercept", b_hat[0])]
-    tab = create_table(b_hat, tab, cols=training.columns, skip=1)
-    linear_mse = test_lin_reg(test_matrix, output_test, b_hat)
+    linear_mse, linear_stderr = test_lin_reg(test_matrix, output_test, b_hat)
+    z_score = b_hat / linear_stderr
+    
+    cols = training.columns.values
+    np.insert(cols, 0, "Intercept")
+    tab = table_lin_reg(b_hat, linear_stderr, z_score, cols)
+    linear_mse_train, linear_stderr_train = test_lin_reg(training_matrix, output_training, b_hat)
+    
+    corr = training.corr()
 
-    print(f"Beta Values from Linear Regression \n {tabulate(tab)}")
-    print(f"Linear Regression MSE: {linear_mse}")
+    print(f"Table 3.1: \n{tabulate(tab)} \n")
+    print(f"Table 3.2: \n {corr} \n")
+    print(f"Linear Regression MSE: {linear_mse} \n")
+    print(f"Linear Regression MSE (Training): {linear_mse_train} \n")
+    
 
     # --------Ridge Regression----------
     lambdas = np.linspace(5, 1000, 1000)
@@ -142,10 +183,12 @@ def apply_models(df, output):
 
     tab = []
     tab.append(("Intercept", b_o_best))
-    tab = create_table(b_ridge_best, tab, cols=training.columns)
-    print(f"Best Beta_Ridge:\n {tabulate(tab)}")
-    ridge_mse = test_lin_reg_ridge(test_matrix[:, 1:], output_test, b_ridge_best, b_o_best)
-    print(f"Ridge MSE: {ridge_mse}")
+    tab = table_ridge_lasso(b_ridge_best, tab, cols=training.columns)
+    print(f"Best Beta_Ridge:\n {tabulate(tab)} \n")
+    ridge_mse = test_lin_reg_ridge(test_matrix_split[:, 1:], output_test_split, b_ridge_best, b_o_best)
+    ridge_mse_train = test_lin_reg_ridge(training_matrix[:, 1:], output_training, b_ridge_best, b_o_best)
+    print(f"Ridge MSE: {ridge_mse} \n")
+    print(f"Ridge MSE (Training): {ridge_mse_train} \n")
 
     fig, ax = plt.subplots(1, 1)
     ax.plot(np.log(lambdas), betas.T)
@@ -166,6 +209,7 @@ def apply_models(df, output):
         clf = linear_model.Lasso(alpha=alpha2)
         clf.fit(training_matrix[:, 1:].tolist(), output_training.tolist())
         score = clf.score(validation_matrix[:, 1:], validation_output)
+        # score = test_lin_reg_ridge(validation_matrix[:, 1:], validation_output, clf.coef_, clf.intercept_)
         betas[:, i] = clf.coef_
         if score > best_score:
             best_score = score
@@ -175,8 +219,14 @@ def apply_models(df, output):
 
     tab = []
     tab.append(("Intercept", best_parameters["intercept"]))
-    tab = create_table(best_parameters["weights"], tab, cols=training.columns)
-    print(f"Best Beta_Lasso:\n {tabulate(tab)}")
+    tab = table_ridge_lasso(best_parameters["weights"], tab, cols=training.columns)
+    print(f"Best Beta_Lasso:\n {tabulate(tab)} \n")
+
+
+    lasso_mse = test_lin_reg_ridge(test_matrix_split[:, 1:], output_test_split, best_parameters["weights"], best_parameters["intercept"])
+    lasso_mse_train = test_lin_reg_ridge(training_matrix[:, 1:], output_training, best_parameters["weights"], best_parameters["intercept"])
+    print(f"Lasso MSE: {lasso_mse} \n")
+    print(f"Lasso MSE (Training): {lasso_mse_train} \n")
 
     fig, ax = plt.subplots(1, 1)
     ax.plot(alpha, betas.T)
@@ -188,24 +238,30 @@ def apply_models(df, output):
     ax.set_title("Lasso Regression Coefficients")
     plt.show()
 
-# %% Apply first Prostate Cancer Dataset
-df = pd.read_csv("prostate.txt", sep="\t")
 
-output = df[["lpsa", "train"]]
-df = df.drop(["Unnamed: 0", "lpsa"], axis=1)
+def main():
+    #  Apply first Prostate Cancer Dataset
+    df = pd.read_csv("prostate.txt", sep="\t")
 
-apply_models(df, output)
+    output = df[["lpsa", "train"]]
+    df = df.drop(["Unnamed: 0", "lpsa"], axis=1)
 
-# %% Repeat for Real Estate dataset
-df2 = pd.read_csv("Real estate.csv")
+    apply_models(df, output)
 
-df2 = df2.drop(["No"], axis=1)
-df2['train'] = "T"
-dfupdate=df2.sample(50)
-dfupdate.train = "F"
-df2.update(dfupdate)
+    #  Repeat for Real Estate dataset
+    df2 = pd.read_csv("Real estate.csv")
 
-output2 = df2[["Y house price of unit area", "train"]]
-df2.drop(["Y house price of unit area"], axis=1, inplace=True)
+    df2 = df2.drop(["No"], axis=1)
+    df2['train'] = "T"
+    dfupdate=df2.sample(50)
+    dfupdate.train = "F"
+    df2.update(dfupdate)
 
-apply_models(df2, output2)
+    output2 = df2[["Y house price of unit area", "train"]]
+    df2.drop(["Y house price of unit area"], axis=1, inplace=True)
+
+    apply_models(df2, output2)
+
+
+if __name__ == "__main__":
+    main()
