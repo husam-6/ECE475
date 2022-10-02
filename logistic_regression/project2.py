@@ -1,3 +1,8 @@
+"""Michael Bentivegna and Husam Almanakly
+
+Frequentist ML Project 2
+"""
+
 # %% Libraries
 import pandas as pd
 import numpy as np
@@ -6,9 +11,24 @@ import tqdm
 import matplotlib.pyplot as plt
 from dataclasses import dataclass, field, InitVar
 
+
+# %%
+
+script_path = os.path.dirname(os.path.realpath(__file__))
+data = pd.read_csv(f"{script_path}/breast-cancer.csv").drop("id", axis=1)
+tmp = data["diagnosis"].values
+labels = (tmp == "M") * 1
+data = data.drop("diagnosis", axis=1)
+
+
+# %%
+
 # For SAHeart Data
 @dataclass
 class Data:
+    data: pd.DataFrame
+    labels: np.ndarray
+
     # Training data
     training_data: np.ndarray = field(init=False)
     training_labels: np.ndarray = field(init=False)
@@ -22,47 +42,36 @@ class Data:
     test_labels: np.ndarray = field(init=False)
 
     # Arrays for names and labels
-    labels_df: np.ndarray = field(init=False)
     feature_names: list = field(init=False)
 
-    df: pd.DataFrame = field(init=False)
-
     def __post_init__(self):
-        # Read in data - remove labels and divide into training / validation / test
-        script_path = os.path.dirname(os.path.realpath(__file__))
-        data = pd.read_csv(f"{script_path}/SAheart.csv").drop("row.names",axis=1)
-        labels = data["chd"].to_numpy()
-        data = data.drop(["adiposity", "typea", "chd"], axis=1)
+        self.feature_names = self.data.columns.values     # Feature names in order
 
-        # Convert Famhist to 0's and 1's
-        tmp = data["famhist"].values
-        tmp = (tmp == "Present") * 1
-        data["famhist"] = tmp
-        self.feature_names = data.columns.values     # Feature names in order
-
-        # Scale data
-        data = (data - data.mean()) / data.std()
-        data.insert(0, "intercept", np.ones(data.shape[0]))
-        numpy_data = data.to_numpy()
+        self.data.insert(0, "intercept", np.ones(self.data.shape[0]))
+        numpy_data = self.data.to_numpy()
 
         # Divide data into 80% training, 10% validation, 10% test
-        num_samples = data.shape[0]
+        num_samples = self.data.shape[0]
         training_cutoff = int(num_samples * 0.8)
         test_cutoff = training_cutoff + int(num_samples * 0.1)
 
         # Samples
-        self.training_data = numpy_data[:training_cutoff, :]
-        self.test_data = numpy_data[training_cutoff:test_cutoff, :]
-        self.validation_data = numpy_data[test_cutoff:, :]
+        self.training_data = scale_numpy(numpy_data[:training_cutoff, :])
+        self.test_data = scale_numpy(numpy_data[training_cutoff:test_cutoff, :])
+        self.validation_data = scale_numpy(numpy_data[test_cutoff:, :])
 
         # Labels
-        self.training_labels = labels[:training_cutoff]
-        self.test_labels = labels[training_cutoff:test_cutoff]
-        self.validation_labels = labels[test_cutoff:]
+        self.training_labels = self.labels[:training_cutoff]
+        self.test_labels = self.labels[training_cutoff:test_cutoff]
+        self.validation_labels = self.labels[test_cutoff:]
 
-        # Save dataframe as well
-        self.df = data
-        self.labels_df = labels
+
+def scale_numpy(x: np.ndarray) -> np.ndarray:
+    """Scale data passed in"""
+    assert isinstance(x, np.ndarray)
+    std = x.std(axis=0) + 0.1
+    x = (x - x.mean(axis=0)) / std
+    return x
 
 
 def cross_validation(y, y_hat):
@@ -186,8 +195,8 @@ def forward_stepwise(iterations, x, y, learning_rate, initial_theta, validation,
 def plot_scatters(data):
     """Function to create big scatter plot figure for SA Dataset"""
     fig, ax = plt.subplots(7, 7, figsize=(12,12))
-    class1 = data.df[data.labels_df == 0]
-    class2 = data.df[data.labels_df == 1]
+    class1 = data.data[data.labels == 0]
+    class2 = data.data[data.labels == 1]
 
     # print(list(itertools.combinations(feature_names, 2)))
     for i in range(len(data.feature_names)):
@@ -214,8 +223,19 @@ def print_loss(theta, updated_test, test_labels, output_string):
     
 
 def main():
-    # Initialize data and weight vector
-    data = Data()
+    # Read in data - remove labels and divide into training / validation / test
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    df = pd.read_csv(f"{script_path}/SAheart.csv").drop("row.names",axis=1)
+    labels = df["chd"].to_numpy()
+    df = df.drop(["adiposity", "typea", "chd"], axis=1)
+
+    # Convert Famhist to 0's and 1's
+    tmp = df["famhist"].values
+    tmp = (tmp == "Present") * 1
+    df["famhist"] = tmp
+    
+    # Initialize data and weight vector - SAHeart Dataset
+    data = Data(df, labels)
     theta = np.zeros([1, data.training_data.shape[1]])
     
     # Stochastic gradient descent call without L2 regularization
