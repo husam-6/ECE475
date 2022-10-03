@@ -3,7 +3,7 @@
 Frequentist ML Project 2
 """
 
-# %% Libraries
+# Libraries
 import pandas as pd
 import numpy as np
 import os
@@ -11,17 +11,6 @@ import tqdm
 import matplotlib.pyplot as plt
 from dataclasses import dataclass, field, InitVar
 
-
-# %%
-
-script_path = os.path.dirname(os.path.realpath(__file__))
-data = pd.read_csv(f"{script_path}/breast-cancer.csv").drop("id", axis=1)
-tmp = data["diagnosis"].values
-labels = (tmp == "M") * 1
-data = data.drop("diagnosis", axis=1)
-
-
-# %%
 
 # For SAHeart Data
 @dataclass
@@ -218,12 +207,12 @@ def print_loss(theta, updated_test, test_labels, output_string):
     loss = cross_validation(test_labels, y_hat)
     accuracy = calculate_accuracy(test_labels, y_hat)
     
-    print("----------------" + output_string + "----------------" )
-    print(f"Test Loss=> {loss:0.4f}, Test Accuracy => {accuracy:0.4f}")
+    print("---------------- " + output_string + " ----------------" )
+    print(f"Test Prob => {loss:0.4f}, Test Accuracy => {accuracy:0.4f}")
     
 
 def main():
-    # Read in data - remove labels and divide into training / validation / test
+    # Read in SA Heart data - remove labels and divide into training / validation / test
     script_path = os.path.dirname(os.path.realpath(__file__))
     df = pd.read_csv(f"{script_path}/SAheart.csv").drop("row.names",axis=1)
     labels = df["chd"].to_numpy()
@@ -233,38 +222,51 @@ def main():
     tmp = df["famhist"].values
     tmp = (tmp == "Present") * 1
     df["famhist"] = tmp
-    
-    # Initialize data and weight vector - SAHeart Dataset
-    data = Data(df, labels)
-    theta = np.zeros([1, data.training_data.shape[1]])
-    
-    # Stochastic gradient descent call without L2 regularization
-    theta_out, val_prob = sgd(1000, data.training_data,
-                           data.training_labels, 0.01, theta,
-                           (data.validation_data, data.validation_labels),
-                           l2_reg=False
-    )
-    print_loss(theta_out, data.test_data, data.test_labels, "SGD without L2")
-    
-    # Stochastic gradient descent call for L2 regularization
-    theta_out_l2, val_prob = sgd(1000, data.training_data,
-                           data.training_labels, 0.01, theta,
-                           (data.validation_data, data.validation_labels),
-                           l2_reg=True
-    )
-    print_loss(theta_out_l2, data.test_data, data.test_labels, "SGD with L2")
 
-    # Stepwise analysis
-    print("Applying stepwise analysis of theta vector...")
-    theta_out_stepwise, updated_x, updated_test = forward_stepwise(1000, data.training_data, 
-                     data.training_labels, 0.01, theta_out,
-                     validation=(data.validation_data, data.validation_labels),
-                     test=(data.test_data, data.test_labels)
-    )
+    # Read in second dataset (Breast Cancer data)
+    data = pd.read_csv(f"{script_path}/breast-cancer.csv").drop("id", axis=1)
+    tmp = data["diagnosis"].values
+    labels_cancer = (tmp == "M") * 1
+    df_cancer = data.drop("diagnosis", axis=1)
 
-    print_loss(theta_out_stepwise, updated_test, data.test_labels, "SGD with Forward Step-Wise")
+    heart_data = Data(df, labels)
+    cancer_data = Data(df_cancer, labels_cancer)
+    data_tuples = [(heart_data, "SA Heart Data"), (cancer_data, "Breast Cancer Data") ]
 
-    plot_scatters(data)
+    for item in data_tuples:
+        print(f"SGD Applied on {item[1]}...")
+
+        # Initialize data and weight vector
+        data = item[0]
+        theta = np.zeros([1, data.training_data.shape[1]])
+        
+        # Stochastic gradient descent call without L2 regularization
+        theta_out, val_prob = sgd(1000, data.training_data,
+                            data.training_labels, 0.01, theta,
+                            (data.validation_data, data.validation_labels),
+                            l2_reg=False
+        )
+        print_loss(theta_out, data.test_data, data.test_labels, "SGD without L2")
+        
+        # Stochastic gradient descent call for L2 regularization
+        theta_out_l2, val_prob = sgd(1000, data.training_data,
+                            data.training_labels, 0.01, theta,
+                            (data.validation_data, data.validation_labels),
+                            l2_reg=True
+        )
+        print_loss(theta_out_l2, data.test_data, data.test_labels, "SGD with L2")
+
+        # Stepwise analysis
+        print("Applying stepwise analysis of theta vector...")
+        theta_out_stepwise, updated_x, updated_test = forward_stepwise(1000, data.training_data, 
+                        data.training_labels, 0.01, theta_out,
+                        validation=(data.validation_data, data.validation_labels),
+                        test=(data.test_data, data.test_labels)
+        )
+
+        print_loss(theta_out_stepwise, updated_test, data.test_labels, "SGD with Forward Step-Wise")
+
+    plot_scatters(heart_data)
     return
 
 
