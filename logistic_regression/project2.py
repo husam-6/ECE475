@@ -31,7 +31,7 @@ class Data:
     test_labels: np.ndarray = field(init=False)
 
     # Arrays for names and labels
-    feature_names: list = field(init=False)
+    feature_names: np.ndarray = field(init=False)
 
     def __post_init__(self):
         self.feature_names = self.data.columns.values     # Feature names in order
@@ -89,7 +89,7 @@ def h_theta(x: np.ndarray, theta: np.ndarray) -> np.ndarray:
     return (1 / den).flatten()
 
 
-def update_weights(x, y, learning_rate, theta, regularization=False):
+def update_weights(x, y, learning_rate, theta, regularization=0, lamb=None):
     """
     x is 1 x (p+1) for one sample 
     y is a scalar 0 or 1
@@ -97,19 +97,20 @@ def update_weights(x, y, learning_rate, theta, regularization=False):
     theta is 1 x (p+1) of weights
     """ 
     # theta = theta + learning_rate * (y - h_theta(x, theta)) * x
-    L2 = 0
+    reg = 0
     for j in range(theta.shape[1]):
-        if regularization:
-            L2 = 0.001 * theta[0, j]
-        theta[0, j] = theta[0, j] + learning_rate * (y - h_theta(x, theta)) * x[j] - L2
-    # j = np.random.randint(0, len(theta))
-    # theta[j] = theta[j] + learning_rate * (y - h_theta(x, theta)) * x[j]
+        if regularization == 2:
+            reg = 0.001 * theta[0, j]
+        elif regularization == 1:
+            reg = lamb * learning_rate * np.sign(theta[0, j])
+
+        theta[0, j] = theta[0, j] + learning_rate * (y - h_theta(x, theta)) * x[j] - reg
 
     return theta
 
 
-def sgd(iterations, x, y, learning_rate, initial_theta, validation, l2_reg, display=True):
-    """"
+def sgd(iterations, x, y, learning_rate, initial_theta, validation, regularization, display=True, lamb=None):
+    """
     x is N x (p+1)
     y is N x 1
     iterations and learning rate are user chosen scalars
@@ -124,7 +125,7 @@ def sgd(iterations, x, y, learning_rate, initial_theta, validation, l2_reg, disp
 
     for i in bar:
         chosen = np.random.randint(y.shape[0])
-        theta = update_weights(x[chosen, :], y[chosen], learning_rate, theta, l2_reg)
+        theta = update_weights(x[chosen, :], y[chosen], learning_rate, theta, regularization, lamb)
 
         y_hat = h_theta(x, theta)
         training_accuracy = calculate_accuracy(y, y_hat)
@@ -163,7 +164,7 @@ def forward_stepwise(iterations, x, y, learning_rate, initial_theta, validation,
             tmp_current_val = np.concatenate((current_val, validation[0][:, i].reshape(-1, 1)), axis = 1)
 
             theta, prob = sgd(iterations, tmp_current_x, y, learning_rate,
-                              tmp_theta, (tmp_current_val, validation[1]), l2_reg=False,
+                              tmp_theta, (tmp_current_val, validation[1]), regularization=0,
                               display=False
             )
 
@@ -209,7 +210,34 @@ def print_loss(theta, updated_test, test_labels, output_string):
     
     print("---------------- " + output_string + " ----------------" )
     print(f"Test Prob => {loss:0.4f}, Test Accuracy => {accuracy:0.4f}")
+
+
+def lasso_model(x, y, labels, learning_rate, validation, theta):
+    lambdas = np.linspace(0, 1, 50)
+
+    best_accuracy = float("-inf")
+    best_lam = -1
+    thetas = np.zeros((x.shape[1], 50))
+
+    for i, lam in enumerate(lambdas):
+        new_theta, val = sgd(1000, x,
+                        y, learning_rate, theta,
+                        (validation[0], validation[1]),
+                        1, display=False, lamb=lam)
+        thetas[:, i] = new_theta
+        if val > best_accuracy:
+            best_accuracy = val
+            best_lam = lam
     
+    plt.figure()
+    plt.plot(lambdas, thetas.T)
+    plt.xlabel("Lambda")
+    plt.ylabel("Coefficients")
+    plt.legend(labels)
+    plt.show()
+
+    return thetas
+
 
 def main():
     # Read in SA Heart data - remove labels and divide into training / validation / test
@@ -244,7 +272,7 @@ def main():
         theta_out, val_prob = sgd(1000, data.training_data,
                             data.training_labels, 0.01, theta,
                             (data.validation_data, data.validation_labels),
-                            l2_reg=False
+                            regularization=0
         )
         print_loss(theta_out, data.test_data, data.test_labels, "SGD without L2")
         
@@ -252,7 +280,7 @@ def main():
         theta_out_l2, val_prob = sgd(1000, data.training_data,
                             data.training_labels, 0.01, theta,
                             (data.validation_data, data.validation_labels),
-                            l2_reg=True
+                            regularization=2
         )
         print_loss(theta_out_l2, data.test_data, data.test_labels, "SGD with L2")
 
@@ -266,7 +294,15 @@ def main():
 
         print_loss(theta_out_stepwise, updated_test, data.test_labels, "SGD with Forward Step-Wise")
 
+    # Scatter plot figure from textbook
     plot_scatters(heart_data)
+
+    # Stretch goal 1: Lasso plot
+    theta = np.zeros([1, heart_data.training_data.shape[1]])
+    thetas = lasso_model(heart_data.training_data, heart_data.training_labels, heart_data.feature_names, 0.01, 
+                validation=(heart_data.validation_data, heart_data.validation_labels), theta=theta
+    )
+
     return
 
 
