@@ -15,6 +15,8 @@ import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
+from sklearn.inspection import PartialDependenceDisplay, partial_dependence
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def main():
@@ -30,7 +32,7 @@ def main():
 
     # Add AveOccupancy feature instead of households
     df["AveOccupancy"] = df["population"] / df["households"]
-
+    
     # Replace Rooms and Bedrooms with averages...
     df["AveRooms"] = df["total rooms"] / df["households"]
     df["AveBedrooms"] = df["total bedrooms"] / df["households"]
@@ -38,23 +40,20 @@ def main():
 
     # Split Data from Output
     Y = df["median house value"].to_frame()
+    Y = (Y - 180000) / Y.std()
     df = df.drop("median house value", axis=1)
 
     # Recreate figure 10.13 on California Housing data
-    regressionXG(df, Y, 0.1, 3, 5, 800)
+    regressionXG(df, Y, 0.1, 3, 5, 800, 
+                ['median income', 'AveOccupancy', 'housing median age', 'AveRooms'],
+                ['AveOccupancy', 'housing median age'], True)
     return
-
-
-# Normalize data
-def scale_df(x: pd.DataFrame) -> pd.DataFrame:
-    """Scale data passed in"""
-    x = (x - x.mean()) / x.std()
-    return x
-
+ 
 
 def regressionXG(df: pd.DataFrame, Y: pd.DataFrame, 
                  learning_rate: float, max_depth: int,
-                 alpha: int, iters: int):
+                 alpha: int, iters: int, features1: list,
+                 features2: list,  cali: bool):
     """Function to apply regression using gradient boosted trees with package XGBoost
     
     Takes in data input, output, and model parameters and produces training and test error plot
@@ -62,12 +61,6 @@ def regressionXG(df: pd.DataFrame, Y: pd.DataFrame,
     
     # Split data into Training and Test data
     X_train, X_test, y_train, y_test = train_test_split(df, Y, test_size=0.2, random_state=123)
-
-    X_train = scale_df(X_train)
-    X_test = scale_df(X_test)
-    y_train = scale_df(y_train)
-    y_test = scale_df(y_test)
-
 
     # Reference: https://www.datacamp.com/tutorial/xgboost-in-python
     lossFunc = 'mean_absolute_error'
@@ -91,7 +84,7 @@ def regressionXG(df: pd.DataFrame, Y: pd.DataFrame,
     plt.ylim([0, 1])
     plt.legend()
     
-
+    # Importance plots
     # Reference: https://machinelearningmastery.com/feature-importance-and-feature-selection-with-xgboost-in-python/
     sorted_features = [x for _, x in sorted(zip(xg_reg.feature_importances_, X_train.columns.values), reverse=True)]
     importance = sorted(xg_reg.feature_importances_, reverse=True)
@@ -100,6 +93,45 @@ def regressionXG(df: pd.DataFrame, Y: pd.DataFrame,
     plt.barh(range(len(xg_reg.feature_importances_)), importance)
     plt.xlabel("Relative Importance")
     plt.yticks(range(len(xg_reg.feature_importances_)), labels = sorted_features)
+
+    # Partial Dependencies
+    fig, ax = plt.subplots(2, 2, figsize = (10, 10))
+    PartialDependenceDisplay.from_estimator(xg_reg, X_train, features1, ax = ax)
+
+    # For textbook figure recreation
+    if cali:                                    
+        ax[0,0].set_ylim([-.5, 2])
+        ax[0,1].set_ylim([-1, 1.5])
+        ax[1,0].set_ylim([-1, 1])
+        ax[1,1].set_ylim([-1, 1.5])
+        
+        idx = np.linspace(-1, 1.5, 6) 
+        ax[0,1].set_yticks(idx, labels = idx)
+        ax[1,1].set_yticks(idx, labels = idx)
+
+    # Multi Var Partial Dependencies
+    # Reference: https://scikit-learn.org/0.22/auto_examples/inspection/plot_partial_dependence.html
+    fig = plt.figure()
+
+    pdp = partial_dependence(xg_reg, X_train, features=features2,
+                                   grid_resolution=20)
+    averages = pdp['average']
+    axes = pdp['values']
+    XX, YY = np.meshgrid(axes[0], axes[1])
+    Z = averages[0].T 
+    ax = Axes3D(fig, auto_add_to_figure=False)
+    fig.add_axes(ax)
+    surf = ax.plot_surface(XX, YY, Z, rstride=1, cstride=1,
+                        cmap=plt.cm.BuPu, edgecolor='k')
+    ax.set_ylim(YY.max(), YY.min())
+    ax.set_xlabel(features2[0])
+    ax.set_ylabel(features2[1])
+    ax.set_zlabel('Partial dependence')
+    ax.view_init(elev=22, azim=122)
+    plt.colorbar(surf)
+    plt.subplots_adjust(top=0.9)
+
+    
     plt.show()
 
 
