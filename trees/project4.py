@@ -64,7 +64,7 @@ def regressionXG(df: pd.DataFrame, Y: pd.DataFrame,
     # Reference: https://www.datacamp.com/tutorial/xgboost-in-python
     lossFunc = 'mean_absolute_error'
     xg_reg = xgb.XGBRegressor(objective ='reg:pseudohubererror', colsample_bytree = 0.3, learning_rate = learning_rate,
-                    max_depth = max_depth, alpha = alpha, n_estimators = iters, eval_metric=mean_absolute_error)
+                    max_depth = max_depth  , alpha = alpha, n_estimators = iters, eval_metric=mean_absolute_error)
 
     # define the datasets to evaluate each iteration
     evalset = [(X_train, y_train), (X_test, y_test)]
@@ -82,7 +82,16 @@ def regressionXG(df: pd.DataFrame, Y: pd.DataFrame,
     plt.ylabel("Absolute Error")
     plt.ylim([0, 1])
     plt.legend()
+    
+
+    # Reference: https://machinelearningmastery.com/feature-importance-and-feature-selection-with-xgboost-in-python/
+    sorted_features = [x for _, x in sorted(zip(xg_reg.feature_importances_, X_train.columns.values), reverse=True)]
+    plt.figure()
+    plt.barh(range(len(xg_reg.feature_importances_)), sorted(xg_reg.feature_importances_, reverse=True))
+    plt.xlabel("Relative Importance")
+    plt.yticks(range(len(xg_reg.feature_importances_)), labels = sorted_features)
     plt.show()
+
 
 
 if __name__ == "__main__":
