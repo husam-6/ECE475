@@ -28,12 +28,20 @@ def main():
     df = pd.read_csv('cadata.txt', delim_whitespace=True,
                     header=None, engine='python', names = labels)
 
+    # Add AveOccupancy feature instead of households
+    df["AveOccupancy"] = df["population"] / df["households"]
+
+    # Replace Rooms and Bedrooms with averages...
+    df["AveRooms"] = df["total rooms"] / df["households"]
+    df["AveBedrooms"] = df["total bedrooms"] / df["households"]
+    df.drop(["total rooms", "total bedrooms", "households"], axis=1, inplace=True)
+
     # Split Data from Output
     Y = df["median house value"].to_frame()
     df = df.drop("median house value", axis=1)
 
     # Recreate figure 10.13 on California Housing data
-    regressionXG(df, Y, 0.1, 6, 10, 800)
+    regressionXG(df, Y, 0.1, 3, 5, 800)
     return
 
 
@@ -86,8 +94,10 @@ def regressionXG(df: pd.DataFrame, Y: pd.DataFrame,
 
     # Reference: https://machinelearningmastery.com/feature-importance-and-feature-selection-with-xgboost-in-python/
     sorted_features = [x for _, x in sorted(zip(xg_reg.feature_importances_, X_train.columns.values), reverse=True)]
+    importance = sorted(xg_reg.feature_importances_, reverse=True)
+    importance = importance / max(importance) * 100
     plt.figure()
-    plt.barh(range(len(xg_reg.feature_importances_)), sorted(xg_reg.feature_importances_, reverse=True))
+    plt.barh(range(len(xg_reg.feature_importances_)), importance)
     plt.xlabel("Relative Importance")
     plt.yticks(range(len(xg_reg.feature_importances_)), labels = sorted_features)
     plt.show()
