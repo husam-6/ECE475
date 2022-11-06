@@ -47,6 +47,19 @@ def main():
     regressionXG(df, Y, 0.1, 3, 5, 800, 
                 ['median income', 'AveOccupancy', 'housing median age', 'AveRooms'],
                 ['AveOccupancy', 'housing median age'], True)
+
+
+    # Second dataset: https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who
+    life_df = pd.read_csv("life.csv")
+    life_df.drop(["Country", "Year", "Status"], axis=1, inplace=True)
+    life_df = life_df.fillna(0)
+
+    Y2 = life_df["Life expectancy "].to_frame()
+    Y2 = (Y2 - Y2.mean()) / Y2.std()
+
+    regressionXG(life_df, Y2, 0.1, 3, 5, 800,
+                    ['Adult Mortality', 'infant deaths', 'Alcohol', ' BMI '],
+                    ["Adult Mortality", "infant deaths"], False)
     return
  
 
@@ -133,7 +146,6 @@ def regressionXG(df: pd.DataFrame, Y: pd.DataFrame,
 
     
     plt.show()
-
 
 
 if __name__ == "__main__":
