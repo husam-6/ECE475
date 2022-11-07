@@ -2,6 +2,19 @@
 Michael Bentivegna and Husam Almanakly
 Frequentist ML Project 4
 
+    This project uses gradient boosted trees to determine a regression model for multivariate features.  The first plot
+    displays the loss of the training and test sets with respect to the training time.  The next plot displays the
+    relative importance of each feature.  The final two plots showcase the partial dependence with respect to one (or
+    more) of the features.
+
+    We found a dataset pertaining to life expectancy with respect to a variety of risk factors such as BMI and alcohol 
+    consumption.  After initially running the model with the same hyperparameters (such as training time and
+    regularization) as the textbook dataset, we fine tuned them to increase the efficacy of our model.  We first found
+    that the model converged quickly even with the lower learning rate being used, so we reduced the number of
+    iterations.  Next, as the number of parameters was larger than in the housing dataset, we decided to increase tree 
+    depth to allow for more splits. This improved both test and training accuracy with little affect on runtime.  
+    Lastly, we played around with regularization and found that an alpha value of 5 was best for
+    regression on both datasets.
 """
 
 # %% Libraries
@@ -46,7 +59,7 @@ def main():
     # Recreate figure 10.13 on California Housing data
     regressionXG(df, Y, 0.1, 3, 5, 800, 
                 ['median income', 'AveOccupancy', 'housing median age', 'AveRooms'],
-                ['AveOccupancy', 'housing median age'], True)
+                ['AveOccupancy', 'housing median age'])
 
 
     # Second dataset: https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who
@@ -57,16 +70,16 @@ def main():
     Y2 = life_df["Life expectancy "].to_frame()
     Y2 = (Y2 - Y2.mean()) / Y2.std()
 
-    regressionXG(life_df, Y2, 0.1, 3, 5, 800,
-                    ['Adult Mortality', 'infant deaths', 'Alcohol', ' BMI '],
-                    ["Adult Mortality", "infant deaths"], False)
+    regressionXG(life_df, Y2, 0.05, 4, 5, 500,
+                    ['Schooling', 'infant deaths', 'Alcohol', ' BMI '],
+                    ["Schooling", " BMI "])
     return
- 
+
 
 def regressionXG(df: pd.DataFrame, Y: pd.DataFrame, 
                  learning_rate: float, max_depth: int,
                  alpha: int, iters: int, features1: list,
-                 features2: list,  cali: bool):
+                 features2: list):
     """Function to apply regression using gradient boosted trees with package XGBoost
     
     Takes in data input, output, and model parameters and produces training and test error plot
@@ -96,10 +109,18 @@ def regressionXG(df: pd.DataFrame, Y: pd.DataFrame,
     plt.ylabel("Absolute Error")
     plt.ylim([0, 1])
     plt.legend()
+
+    # Relative importance 
+    importanceXG(xg_reg, X_train.columns.values)
     
+    # Partial dependency plots
+    partial_dependencies(xg_reg, X_train, features1, features2)
+
+
+def importanceXG(xg_reg, cols):
     # Importance plots
     # Reference: https://machinelearningmastery.com/feature-importance-and-feature-selection-with-xgboost-in-python/
-    sorted_features = [x for _, x in sorted(zip(xg_reg.feature_importances_, X_train.columns.values), reverse=True)]
+    sorted_features = [x for _, x in sorted(zip(xg_reg.feature_importances_, cols), reverse=True)]
     importance = sorted(xg_reg.feature_importances_, reverse=True)
     importance = importance / max(importance) * 100
     plt.figure()
@@ -107,20 +128,11 @@ def regressionXG(df: pd.DataFrame, Y: pd.DataFrame,
     plt.xlabel("Relative Importance")
     plt.yticks(range(len(xg_reg.feature_importances_)), labels = sorted_features)
 
+
+def partial_dependencies(xg_reg, X_train, features1, features2):
     # Partial Dependencies
     fig, ax = plt.subplots(2, 2, figsize = (10, 10))
     PartialDependenceDisplay.from_estimator(xg_reg, X_train, features1, ax = ax)
-
-    # For textbook figure recreation
-    if cali:                                    
-        ax[0,0].set_ylim([-.5, 2])
-        ax[0,1].set_ylim([-1, 1.5])
-        ax[1,0].set_ylim([-1, 1])
-        ax[1,1].set_ylim([-1, 1.5])
-        
-        idx = np.linspace(-1, 1.5, 6) 
-        ax[0,1].set_yticks(idx, labels = idx)
-        ax[1,1].set_yticks(idx, labels = idx)
 
     # Multi Var Partial Dependencies
     # Reference: https://scikit-learn.org/0.22/auto_examples/inspection/plot_partial_dependence.html
