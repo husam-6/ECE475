@@ -68,6 +68,7 @@ def main():
     life_df = life_df.fillna(0)
 
     Y2 = life_df["Life expectancy "].to_frame()
+    life_df.drop(["Life expectancy "], axis=1, inplace=True)
     Y2 = (Y2 - Y2.mean()) / Y2.std()
 
     regressionXG(life_df, Y2, 0.05, 4, 5, 500,
