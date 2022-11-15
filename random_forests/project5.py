@@ -6,15 +6,16 @@ This project aims to compare the convergence rate of a random forest regression 
 boosted tree model. In the California housing dataset, the random forests method plateaus faster, but does not reach the
 same level of accuracy as gradient boosted trees were able to. Boosting is likely slower because of its relatively
 smaller tree depth and low learning rate.  Thus, random forests can be useful when timing is more important 
-than efficiency.  Similar trends are seen in the Life Expectancy dataset.  However, one major difference is the bigger accuracy gap between the
-two methodologies.  This can likely be attributed to the large number of features in this dataset relative to the selected
-number variables at each node (m).  When playing around with a larger m value (4 and 12 instead of 2 and 6), this claim was 
-corroborated and the accuracy gap shrunk. 
+than efficiency.  Similar trends are seen in the Life Expectancy dataset.  However, one major difference is the bigger
+accuracy gap between the two methodologies.  This can likely be attributed to the large number of features in this 
+dataset relative to the selected number variables at each node (m).  When playing around with a larger m value (4 and 
+12 instead of 2 and 6), this claim was corroborated and the accuracy gap shrunk. 
 
-The other goal of this project is to compare the feature importance of each model.  The random forests model was found to have a couple
-of features with high importance, with the rest being substantially less. On the other hand, the gradient boosted trees model was more balanced 
-in terms of importance.  This is likely due to the fact that gradient boosted trees are able to find residual adjustments to fine tune its less 
-important features whereas random forests are not.  This pattern was displayed throughout both datasets but mostly in California housing.  
+The other goal of this project is to compare the feature importance of each model.  The random forests model was found 
+to have a couple of features with high importance, with the rest being substantially less. On the other hand, the
+gradient boosted trees model was more balanced in terms of importance.  This is likely due to the fact that gradient
+boosted trees are able to find residual adjustments to fine tune its less important features whereas random forests are 
+not.  This pattern was displayed throughout both datasets but mostly in California housing.  
 """
 
 # %% Libraries
