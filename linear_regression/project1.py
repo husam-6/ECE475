@@ -10,6 +10,21 @@ similarly sweeps over the hyperparameter alpha to minimize MSE on the validation
 lbph, pgg45 were all non-zero.  Although it is difficult to know if this should be the case, the lasso plot matches the results in the "The Elements 
 of Statistical Learning" textbook.  For each method, the training MSE and test MSE are displayed for comparison.
 
+Stretch Goal: 
+    We attempted to add non-linear and interaction terms to the data in attempt to improve 
+    the performance of our model.  Initially, each of the input data columns were plotted 
+    against the output to identify features where adding a non-linear term might increase 
+    linearity.  We found that pgg45 seemed to have a logarithmic relationship, so 
+    we introduced an exponential term (np.exp(pgg45)). For interaction terms, we similarly
+    plotted the features against themselves to look for relationships in the data. We found
+    that age and lcavol had an inverse quadratic relationship (roughly speaking) and added it to our
+    dataset. We plotted the new feature (- age * lcavol) against the output (lpsa)
+    and we found they had a linear relationship, so it made sense that adding it would improve our 
+    models loss. 
+
+    Our baseline MSE (without any data alteration, using Ridge MSE) was about 0.74. After adding 
+    the exponential term of pgg45, this decreased to 0.68.  With the introduction of interaction terms
+    we were able to bring this down further to 0.64.
 """
 
 # %% Libraries
@@ -125,6 +140,7 @@ def apply_models(df, output):
     # Save the output vectors for training / testing (lpsa column)
     output_training = output[output["train"] == "T"].drop("train", axis=1).to_numpy()
     output_test = output[output["train"] == "F"].drop("train", axis=1).to_numpy()
+    # output = (output - training.mean()) / training.std()
 
     # Add column of ones for training set
     training_matrix = training.to_numpy()
@@ -246,6 +262,13 @@ def main():
     output = df[["lpsa", "train"]]
     df = df.drop(["Unnamed: 0", "lpsa"], axis=1)
 
+    # Adding nonlinear term (after data exploration)
+    df["logPGG"] = np.exp(df["pgg45"])
+    df.drop("pgg45", axis=1, inplace=True)
+    
+    # Adding interaction term (again after data analysis)
+    df["lcavol * age"] = - df["lcavol"] * df["age"]
+    
     apply_models(df, output)
 
     #  Repeat for Real Estate dataset
