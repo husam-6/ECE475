@@ -55,12 +55,12 @@ def main():
     # basic_tree_algo(X_train, X_test, 4, calc_ls, "Least Squares", regression_tree_loss)
 
     # For Classification
-    df_heart = pd.read_csv(f"SAheart.csv").drop("row.names",axis=1)
-    Y_heart = df_heart["chd"]
-    df_heart = df_heart.drop(["adiposity", "typea", "chd", "famhist"], axis=1)
+    data = sklearn.datasets.load_breast_cancer()
+    X_breast = pd.DataFrame(data["data"], columns = data["feature_names"])
+    Y_breast = data["target"]
 
     # Divide data into 80% training, 20% validation
-    X_train, X_test, y_train, y_test = train_test_split(df_heart, Y_heart, test_size=0.2, random_state=123)
+    X_train, X_test, y_train, y_test = train_test_split(X_breast, Y_breast, test_size=0.2, random_state=123)
     
     # Add outputs
     X_train["outcome"] = y_train
@@ -68,20 +68,19 @@ def main():
 
     # Using cross entropy
     basic_tree_algo(X_train, X_test, 4, calc_cross_entropy, "Cross Entropy", classification_tree_loss)
-    
+
     # Using Misclassification
-    basic_tree_algo(X_train, X_test, 4, calc_cross_entropy, "Misclassification", classification_tree_loss)
+    basic_tree_algo(X_train, X_test, 4, calc_misclass, "Misclassification", classification_tree_loss)
     
     # Using Gini Index
-    basic_tree_algo(X_train, X_test, 4, calc_cross_entropy, "Gini Index", classification_tree_loss)
+    basic_tree_algo(X_train, X_test, 4, calc_gini, "Gini Index", classification_tree_loss)
 
 
 def basic_tree_algo(df, df_test, num_splits, split_function, name_of_loss, loss_function):
     """Function to implement basic tree algorithm"""
     features = df.columns.values[:-1]  
     root = Node(df)
-    loss = np.zeros(2**4 - 1)
-    i = 0
+    loss = []
     for s in range(num_splits):
         # Loop through each region (nodes in our tree)
         for r in get_leaf_nodes(root, []):
@@ -103,8 +102,7 @@ def basic_tree_algo(df, df_test, num_splits, split_function, name_of_loss, loss_
                         
             # Split tree based on best results
             r.split(best_feature, best_split)
-            loss[i] = loss_function(root, df_test)
-            i+=1
+            loss.append(tree_loss(root, df_test, loss_function))
 
     plt.plot(loss)
     plt.title(f"Validation Error using {name_of_loss}")
@@ -113,7 +111,7 @@ def basic_tree_algo(df, df_test, num_splits, split_function, name_of_loss, loss_
     plt.show()
 
 
-def regression_tree_loss(root, test_set):
+def tree_loss(root, test_set, calculate_tree_loss):
     """Function to predict output based on given tree splits"""
     loss = np.zeros(test_set.shape[0])
     i = 0
@@ -127,38 +125,23 @@ def regression_tree_loss(root, test_set):
         
         # head is the correct leaf node now
         if head.df.shape[0] == 0:
-            y_hat = 0
+            y_hat = .5
         else:
             y_hat = head.df["outcome"].mean()
-
-        loss[i] = (item["outcome"] - y_hat)**2
-        i+=1
-    
-    return loss.mean()
-
-
-def classification_tree_loss(root, test_set):
-    """Function to predict output based on given tree splits"""
-    loss = np.zeros(test_set.shape[0])
-    i = 0
-    for index, item in test_set.iterrows():
-        head = root
-        while(head.left is not None):
-            if item[head.feature] < head.split_point:
-                head = head.left
-            else:
-                head = head.right
         
-        # head is the correct leaf node now
-        if head.df.shape[0] == 0:
-            y_hat = 0
-        else:
-            y_hat = head.df["outcome"].mean() 
-
-        loss[i] = - (item["outcome"] * np.log(y_hat) + (1 - item["outcome"]) * np.log(1 - y_hat))
+        loss[i] = calculate_tree_loss(y_hat, item)
         i+=1
-    
     return loss.mean()
+
+
+def regression_tree_loss(y_hat, item):
+    return (item["outcome"] - y_hat)**2
+
+
+def classification_tree_loss(y_hat, item):
+    """Function to predict output based on given tree splits"""
+    s = 0.001
+    return - (item["outcome"] * np.log(y_hat + s) + (1 - item["outcome"]) * np.log(1 - y_hat + s))
 
 
 def calculate_split_loss(split_point, data, feature, loss_function):
@@ -166,6 +149,10 @@ def calculate_split_loss(split_point, data, feature, loss_function):
     # For least squares, get the proposed regions
     r1 = data[data[feature] < split_point]
     r2 = data[data[feature] >= split_point]
+
+    # We don't want split point to be ineffective
+    if (len(r1) == 0) or (len(r2) == 0):
+        return 10000000
 
     # Calculate mean values
     c1 = r1["outcome"].mean()
@@ -190,7 +177,7 @@ def calc_cross_entropy(r1, r2, c1, c2):
            + r2["outcome"] * np.log(c2 + s) + (1 - r2["outcome"]) * np.log(1 - c2 + s))).sum()
 
 
-def calc_cross_misclass(r1, r2, c1, c2):
+def calc_misclass(r1, r2, c1, c2):
     """Misclassification Error"""
 
     # Calculate mean values
@@ -198,14 +185,12 @@ def calc_cross_misclass(r1, r2, c1, c2):
     c2 = round(c2)
     
     # Calculate loss
-    total = abs(r1 - c1).sum() + abs(r2 - c2).sum()
-    
+    total = abs(r1["outcome"] - c1).sum() + abs(r2["outcome"] - c2).sum()
     return total
 
 
-def calc_gini(c1, c2):
+def calc_gini(r1, r2, c1, c2):
     """Gini Index """
-
     return c1 * (1 - c1) + c2 * (1 - c2)
 
 
