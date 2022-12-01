@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from surprise import NMF
 from surprise import Dataset
-from surprise.model_selection import cross_validate
+from surprise.model_selection import GridSearchCV
 
 
 def main():
@@ -17,7 +17,6 @@ def main():
 
 # %%
 
-algo = NMF()
 data = Dataset.load_builtin('ml-100k')
 
 latent_var = 1000
@@ -29,12 +28,18 @@ reg_bi = [0.005, 0.02, 0.12]
 
 
 
-# Run 5-fold cross-validation and print results.
-results = cross_validate(algo, data, measures=['RMSE'], cv=5, verbose=True)
+param_grid = {"n_epochs": [5, 10], "n_factors": n_factors, 
+              "reg_pu": reg_pu, "reg_qi": reg_qi,
+              "reg_bu": reg_bu, "reg_bi": reg_bi}
+gs = GridSearchCV(NMF, param_grid, measures=["rmse", "mae"], cv=5)
+gs.fit(data)
 
+# best RMSE score
+print(gs.best_score["rmse"])
 
-rmse = results["test_rmse"].mean()
-rmse
+# combination of parameters that gave the best RMSE score
+print(gs.best_params["rmse"])
 
 # if __name__ == "__main__":
     # main()
+# %%
