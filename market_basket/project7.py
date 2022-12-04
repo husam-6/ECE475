@@ -38,8 +38,10 @@ Using Python on a regular basis:
     Lift of using Python on a regular basis given women = 0.910
 
     Our results show that women are more likely to be in school and have only one to two years of experience than men. 
-This indicates that recent pushes to get more women interested in programming have been successful.  Although the dataset
-is not compr
+This indicates that recent pushes to get more women interested in programming have been successful.  Further, we found 
+that it was more likely for men to use Python than Women. This could be explained by the earlier point that there are 
+gender biases heavily prevalent in fields involving programming, and perhaps many men were already using Python in the 
+past decade.
 """
 
 # %% Libraries
